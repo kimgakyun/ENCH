@@ -1,0 +1,26 @@
+.form-control {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+
+.register-form label {
+    display: block;
+    margin-bottom: 5px; /* 라벨과 인풋 필드 사이 간격 */
+}
+
+.register-form input {
+    width: 100%; /* 인풋 필드가 전체 너비를 차지하도록 */
+    padding: 10px;
+    margin-bottom: 15px; /* 인풋 필드와 다음 라벨 사이 간격 */
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+
+.register-form button {
+    margin-top: 50px; /* 버튼과 입력 필드 간의 간격 추가 */
+}
