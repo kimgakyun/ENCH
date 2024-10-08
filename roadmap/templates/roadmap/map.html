@@ -1,0 +1,319 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block extra-style %}
+<head>
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <script type="text/javascript" src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{ kakao_map_client_key }}&libraries=services"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+
+<style>
+    body {
+        padding-top: 90px;
+    }
+    .map-container {
+        height: 660px;
+    }
+    .item {
+        cursor: pointer;
+        border-bottom: 1px solid #888;
+        padding: 10px;
+        display: flex;
+        justify-content: space-between;
+    }
+    .item h5 {
+        margin: 0;
+    }
+    .item:hover {
+        background: #f1f1f1;
+    }
+    .badge {
+        background-color: #f0f0f0;
+        color: #333;
+        margin-right: 3px;
+    }
+    .badge + .badge {
+        margin-left: 3px;
+    }
+    .pagination {
+        margin-top: 20px;
+        text-align: center;
+    }
+    .pagination a {
+        margin: 0 2px;
+        padding: 5px 10px;
+        border: 1px solid #ddd;
+        text-decoration: none;
+        color: #333;
+    }
+    .pagination .on {
+        background-color: #007bff;
+        color: #fff;
+        border-color: #007bff;
+    }
+</style>
+{% endblock %}
+
+<body>
+    {% block content %}
+    <div class="container">
+        <div class="row">
+            <div id="menu_wrap" class="col-md-4">
+                <h2 class="mb-4">Fitness Centers</h2>
+
+                <!-- 운동 시설 검색 결과 리스트 -->
+                <ul id="placesList" class="list-group">
+                    {% for place in facilities %}
+                    <li class="list-group-item">
+                        <!-- 운동 시설 이름 -->
+                        <div class="title-bookmark-container">
+                            <a href="{{ place.detail_url }}" class="custom-link">
+                                {{ place.name }}
+                            </a>
+                            <div class="bookmark-container">
+                                <!-- 북마크 버튼 구현 가능 -->
+                            </div>
+                        </div>
+                        <!-- 운동 시설 주소 및 전화번호 -->
+                        <div>
+                            <span class="badge">{{ place.address }}</span>
+                            <span class="badge">{{ place.tel }}</span>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+
+                <!-- 페이지네이션 -->
+                <nav id="pagination" aria-label="Page navigation" class="mt-5">
+                    <ul class="pagination justify-content-center">
+                        {% if pagination.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page=1" aria-label="First">
+                                <span aria-hidden="true">&laquo; First</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ pagination.previous_page_number }}" aria-label="Previous">
+                                <span aria-hidden="true">&lsaquo; Previous</span>
+                            </a>
+                        </li>
+                        {% endif %}
+                
+                        {% for i in pagination.paginator.page_range %}
+                        <li class="page-item {% if i == pagination.number %}active{% endif %}">
+                            <a class="page-link" href="?page={{ i }}">{{ i }}</a>
+                        </li>
+                        {% endfor %}
+                
+                        {% if pagination.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ pagination.next_page_number }}" aria-label="Next">
+                                <span aria-hidden="true">Next &rsaquo;</span>
+                            </a>
+                        </li>
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ pagination.paginator.num_pages }}" aria-label="Last">
+                                <span aria-hidden="true">Last &raquo;</span>
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+
+            <!-- 지도 -->
+            <div id="map" class="map-container col-md-8"></div>
+        </div>
+    </div>
+
+    <script>
+        var map;
+        var markers = [];
+        var infowindow = new kakao.maps.InfoWindow({zIndex: 1});
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    var userLat = position.coords.latitude;
+                    var userLng = position.coords.longitude;
+
+                    var mapContainer = document.getElementById('map');
+                    var mapOption = {
+                        center: new kakao.maps.LatLng(userLat, userLng),
+                        level: 5
+                    };
+
+                    map = new kakao.maps.Map(mapContainer, mapOption);
+
+                    // 사용자 위치에 마커 추가
+                    var userMarker = new kakao.maps.Marker({
+                        position: new kakao.maps.LatLng(userLat, userLng),
+                        map: map,
+                        title: 'Your Location'
+                    });
+
+                    searchPlaces();
+                });
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        });
+
+        function searchPlaces() {
+            var keyword = '헬스장';
+
+            var ps = new kakao.maps.services.Places();
+            ps.keywordSearch(keyword, placesSearchCB, {
+                location: map.getCenter(),
+                radius: 20000
+            });
+        }
+
+        function placesSearchCB(data, status, pagination) {
+            if (status === kakao.maps.services.Status.OK) {
+                displayPlaces(data);
+                console.log(pagination)
+                // displayPagination(pagination);
+            } else if (status === kakao.maps.services.Status.ZERO_RESULT) {
+                alert('No results found.');
+            } else if (status === kakao.maps.services.Status.ERROR) {
+                alert('An error occurred while searching.');
+            }
+        }
+
+        function displayPlaces(places) {
+            var listEl = document.getElementById('placesList');
+            var fragment = document.createDocumentFragment();
+            var bounds = new kakao.maps.LatLngBounds();
+
+            removeAllChildNods(listEl);
+            removeMarker();
+
+            for (var i = 0; i < places.length; i++) {
+                var placePosition = new kakao.maps.LatLng(places[i].y, places[i].x);
+                var marker = addMarker(placePosition, i);
+                var itemEl = getListItem(i, places[i]);
+
+                bounds.extend(placePosition);
+
+                (function(marker, title) {
+                    kakao.maps.event.addListener(marker, 'mouseover', function() {
+                        displayInfowindow(marker, title);
+                    });
+                    kakao.maps.event.addListener(marker, 'mouseout', function() {
+                        infowindow.close();
+                    });
+                    kakao.maps.event.addListener(marker, 'click', function() {
+                        displayInfowindow(marker, title);
+                    });
+                    itemEl.onmouseover = function() {
+                        displayInfowindow(marker, title);
+                    };
+                    itemEl.onmouseout = function() {
+                        infowindow.close();
+                    };
+                    itemEl.onclick = function() {
+                        displayInfowindow(marker, title);
+                        map.setCenter(marker.getPosition());
+                    };
+                })(marker, places[i].place_name);
+
+                fragment.appendChild(itemEl);
+            }
+
+            listEl.appendChild(fragment);
+            map.setBounds(bounds);
+        }
+
+        function getListItem(index, places) {
+            var el = document.createElement('li');
+            el.className = 'list-group-item';
+
+            var itemStr = '<span class="markerbg marker_' + (index + 1) + '"></span>' +
+                          '<div class="info">' +
+                          '   <h5>' + places.place_name + '</h5>';
+
+            if (places.road_address_name) {
+                itemStr += '    <span>' + places.road_address_name + '</span>' +
+                           '   <span class="jibun gray">' + places.address_name + '</span>';
+            } else {
+                itemStr += '    <span>' + places.address_name + '</span>';
+            }
+
+            itemStr += '  <span class="tel">' + places.phone + '</span>' +
+                       '</div>';
+
+            el.innerHTML = itemStr;
+
+            return el;
+        }
+
+        function addMarker(position, idx) {
+            var imageSrc = 'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/marker_number_blue.png';
+            var imageSize = new kakao.maps.Size(36, 37);
+            var imgOptions = {
+                spriteSize: new kakao.maps.Size(36, 691),
+                spriteOrigin: new kakao.maps.Point(0, (idx * 46) + 10),
+                offset: new kakao.maps.Point(13, 37)
+            };
+            var markerImage = new kakao.maps.MarkerImage(imageSrc, imageSize, imgOptions);
+            var marker = new kakao.maps.Marker({
+                position: position,
+                image: markerImage
+            });
+
+            marker.setMap(map);
+            markers.push(marker);
+
+            return marker;
+        }
+
+        function removeMarker() {
+            for (var i = 0; i < markers.length; i++) {
+                markers[i].setMap(null);
+            }
+            markers = [];
+        }
+
+        function displayPagination(pagination) {
+            var paginationEl = document.getElementById('pagination');
+            var fragment = document.createDocumentFragment();
+
+            while (paginationEl.hasChildNodes()) {
+                paginationEl.removeChild(paginationEl.lastChild);
+            }
+
+            for (var i = 1; i <= pagination.last; i++) {
+                var el = document.createElement('a');
+                el.href = "#";
+                el.innerHTML = i;
+
+                if (i === pagination.current) {
+                    el.className = 'on';
+                } else {
+                    el.onclick = (function(i) {
+                        return function() {
+                            pagination.gotoPage(i);
+                        }
+                    })(i);
+                }
+
+                fragment.appendChild(el);
+            }
+            paginationEl.appendChild(fragment);
+        }
+
+        function displayInfowindow(marker, title) {
+            var content = '<div style="padding:5px;z-index:1;">' + title + '</div>';
+            infowindow.setContent(content);
+            infowindow.open(map, marker);
+        }
+
+        function removeAllChildNods(el) {
+            while (el.hasChildNodes()) {
+                el.removeChild(el.lastChild);
+            }
+        }
+    </script>
+{% endblock %}
+</body>
