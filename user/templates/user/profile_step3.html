@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/user_detail_style.css' %}">
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+<div class="container-fluid mt-5">
+    <div class="d-flex justify-content-center mb-5">
+        <form method="post" class="border p-4 rounded mt-4" style="width: 300px;">
+            <h2>Step 3: lifestyle habits</h2>
+            {% if error %}
+            <p style="color: red;" class="text-center">{{ error }}</p>
+            {% endif %}
+            <form method="post">
+                {% csrf_token %}
+                {{ form.as_p }}
+            <button type="submit" class="btn btn-primary w-100 mb-4">Next</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

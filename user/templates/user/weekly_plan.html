@@ -1,0 +1,207 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load custom_tags %}
+
+{% block content %}
+<h2 style="text-align: center; margin-top: 50px;">{{ user.username }}님의 주간 식단 및 운동 계획</h2>
+
+<div class="container mt-5">
+    <table style="width: 100%; border-collapse: collapse; text-align: center; margin: 0 auto;">
+        <thead>
+            <tr>
+                <th style="border: 1px solid #ddd; padding: 8px; width: 10%;">요일</th>
+                <th style="border: 1px solid #ddd; padding: 8px; width: 20%;">아침</th>
+                <th style="border: 1px solid #ddd; padding: 8px; width: 20%;">점심</th>
+                <th style="border: 1px solid #ddd; padding: 8px; width: 20%;">저녁</th>
+                <th style="border: 1px solid #ddd; padding: 8px; width: 20%;">운동 계획</th>
+                <th style="border: 1px solid #ddd; padding: 8px; width: 10%;">액션</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for day in plan %}
+            <tr>
+                <td style="border: 1px solid #ddd; padding: 8px;">{{ day }}</td>
+                <td style="border: 1px solid #ddd; padding: 8px;">
+                    {{ plan|get_item:day|get_item:'아침' }}
+                </td>
+                <td style="border: 1px solid #ddd; padding: 8px;">
+                    {{ plan|get_item:day|get_item:'점심' }}
+                </td>
+                <td style="border: 1px solid #ddd; padding: 8px;">
+                    {{ plan|get_item:day|get_item:'저녁' }}
+                </td>
+                <td style="border: 1px solid #ddd; padding: 8px;">
+                    {{ plan|get_item:day|get_item:'운동 계획' }}
+                </td>
+                <td style="border: 1px solid #ddd; padding: 8px;">
+                    <button class="btn btn-primary" onclick="openModal('{{ day }}')">식사 입력</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- 모달 창 -->
+<div id="meal-modal" style="display:none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5);">
+    <div class="modal-content" style="background-color: white; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 500px;"> <!-- 크기 500px로 조정 -->
+        <span id="modal-title"></span> <!-- 선택된 요일을 표시할 부분 -->
+        <form>
+            <input type="hidden" id="meal-day">
+
+            <!-- 아침 입력 -->
+            <label for="meal-breakfast">아침:</label>
+            <input type="text" id="meal-breakfast" placeholder="메뉴와 양을 입력하세요">
+            <button type="button" onclick="saveMeal('breakfast')">아침 저장</button>
+            <div id="nutrition-info-breakfast" style="margin-top: 10px; color: green;"></div><br>
+
+            <!-- 점심 입력 -->
+            <label for="meal-lunch">점심:</label>
+            <input type="text" id="meal-lunch" placeholder="메뉴와 양을 입력하세요">
+            <button type="button" onclick="saveMeal('lunch')">점심 저장</button>
+            <div id="nutrition-info-lunch" style="margin-top: 10px; color: green;"></div><br>
+
+            <!-- 저녁 입력 -->
+            <label for="meal-dinner">저녁:</label>
+            <input type="text" id="meal-dinner" placeholder="메뉴와 양을 입력하세요">
+            <button type="button" onclick="saveMeal('dinner')">저녁 저장</button>
+            <div id="nutrition-info-dinner" style="margin-top: 10px; color: green;"></div><br>
+
+            <!-- 닫기 버튼 -->
+            <button type="button" onclick="closeModal()">닫기</button>
+        </form>
+    </div>
+</div>
+<script>
+    // 모달 열기
+    function openModal(day) {
+        document.getElementById('modal-title').textContent = day + "의 식사 입력";
+        document.getElementById('meal-day').value = day;
+
+        // 기존 데이터를 가져오기
+        fetch(`/user/api/get_nutrition/?day=${day}`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            // 요일별로 데이터를 표시
+            if (data.breakfast) {
+                document.getElementById('meal-breakfast').value = data.breakfast.actual_food || '';
+                document.getElementById('nutrition-info-breakfast').textContent = 
+                    `탄수화물 ${data.breakfast.carbs || 0}g, 단백질 ${data.breakfast.protein || 0}g, 지방 ${data.breakfast.fat || 0}g`;
+            } else {
+                document.getElementById('meal-breakfast').value = '';
+                document.getElementById('nutrition-info-breakfast').textContent = '';
+            }
+
+            if (data.lunch) {
+                document.getElementById('meal-lunch').value = data.lunch.actual_food || '';
+                document.getElementById('nutrition-info-lunch').textContent = 
+                    `탄수화물 ${data.lunch.carbs || 0}g, 단백질 ${data.lunch.protein || 0}g, 지방 ${data.lunch.fat || 0}g`;
+            } else {
+                document.getElementById('meal-lunch').value = '';
+                document.getElementById('nutrition-info-lunch').textContent = '';
+            }
+
+            if (data.dinner) {
+                document.getElementById('meal-dinner').value = data.dinner.actual_food || '';
+                document.getElementById('nutrition-info-dinner').textContent = 
+                    `탄수화물 ${data.dinner.carbs || 0}g, 단백질 ${data.dinner.protein || 0}g, 지방 ${data.dinner.fat || 0}g`;
+            } else {
+                document.getElementById('meal-dinner').value = '';
+                document.getElementById('nutrition-info-dinner').textContent = '';
+            }
+
+            document.getElementById('meal-modal').style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+
+    // 모달 닫기
+    function closeModal() {
+        document.getElementById('meal-modal').style.display = 'none';
+    }
+
+    // 개별 식사 저장 (아침, 점심, 저녁)
+    function saveMeal(mealType) {
+        const day = document.getElementById('meal-day').value;
+        const actualFood = document.getElementById(`meal-${mealType}`).value;
+
+        // API로 보낼 데이터 구성
+        const mealData = {
+            day: day,
+            [mealType]: actualFood
+        };
+
+        // AJAX 요청을 통해 Django 백엔드로 데이터 전송 (POST)
+        fetch('/user/api/get_nutrition/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify(mealData)
+        })
+        .then(response => response.json())
+        .then(() => {
+            // 저장 후 성공적으로 데이터를 다시 불러옴
+            fetch(`/user/api/get_nutrition/?day=${day}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 저장 후 다시 데이터를 표시
+                if (data.breakfast) {
+                    document.getElementById('meal-breakfast').value = data.breakfast.actual_food || '';
+                    document.getElementById('nutrition-info-breakfast').textContent = 
+                        `탄수화물 ${data.breakfast.carbs || 0}g, 단백질 ${data.breakfast.protein || 0}g, 지방 ${data.breakfast.fat || 0}g`;
+                }
+
+                if (data.lunch) {
+                    document.getElementById('meal-lunch').value = data.lunch.actual_food || '';
+                    document.getElementById('nutrition-info-lunch').textContent = 
+                        `탄수화물 ${data.lunch.carbs || 0}g, 단백질 ${data.lunch.protein || 0}g, 지방 ${data.lunch.fat || 0}g`;
+                }
+
+                if (data.dinner) {
+                    document.getElementById('meal-dinner').value = data.dinner.actual_food || '';
+                    document.getElementById('nutrition-info-dinner').textContent = 
+                        `탄수화물 ${data.dinner.carbs || 0}g, 단백질 ${data.dinner.protein || 0}g, 지방 ${data.dinner.fat || 0}g`;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+    }
+
+    // CSRF 토큰을 가져오는 함수 (Django 보호용)
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '='))
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+        return cookieValue;
+    }
+</script>
+
+{% endblock %}
